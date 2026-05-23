@@ -27,6 +27,9 @@ Completed:
 - Built product listing page with stock per warehouse and reserve action
 - Implemented atomic stock reservation with PostgreSQL conditional UPDATE
 - Added concurrency script proving exactly one reservation succeeds for the last unit
+- Implemented reservation confirmation endpoint that permanently decrements inventory on payment success
+- Implemented reservation release endpoint that returns reserved units back to available pool
+- Added hybrid expiry strategy combining lazy cleanup on GET reads with Vercel Cron background bulk release
 
 ## Development
 
