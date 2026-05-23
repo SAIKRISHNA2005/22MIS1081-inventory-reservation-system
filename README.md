@@ -25,6 +25,8 @@ Completed:
 - Added idempotent seed script populating two warehouses, three products, and realistic initial inventory levels
 - Implemented GET /api/products and GET /api/warehouses endpoints
 - Built product listing page with stock per warehouse and reserve action
+- Implemented atomic stock reservation with PostgreSQL conditional UPDATE
+- Added concurrency script proving exactly one reservation succeeds for the last unit
 
 ## Development
 

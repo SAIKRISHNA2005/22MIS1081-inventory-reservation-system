@@ -10,7 +10,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "seed": "prisma db seed"
+    "seed": "prisma db seed",
+    "test:concurrency": "npx ts-node --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\"}\" scripts/test-concurrency.ts"
   },
   "dependencies": {
     "@prisma/client": "^4.15.0",
