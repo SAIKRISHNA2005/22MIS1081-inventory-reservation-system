@@ -138,30 +138,39 @@ export async function confirmReservation(id: string) {
 }
 
 export async function releaseReservation(id: string) {
-  const reservation = await db.reservation.findUnique({ where: { id } });
-  if (!reservation) throw new ReservationNotFoundError();
+  /*
+   * RELEASE = payment failed, user cancelled, or timer expired.
+   * Only reservedQuantity decrements — totalQuantity does NOT change.
+   * The units return to the available pool (totalQuantity - reservedQuantity increases).
+   *
+   * This function is called from three places:
+   * 1. POST /api/reservations/:id/release (user action)
+   * 2. getReservation() lazy expiry check (automatic on read)
+   * 3. Cron job bulk cleanup (background)
+   * Therefore it must be safe to call even if status is already RELEASED (idempotent).
+   */
+  return await db.$transaction(async (tx) => {
+    const reservation = await tx.reservation.findUnique({ where: { id } });
+    if (!reservation) throw new ReservationNotFoundError();
 
-  if (reservation.status !== "PENDING") {
-    return await db.reservation.findUnique({
+    if (reservation.status !== "PENDING") {
+      return await tx.reservation.findUnique({
+        where: { id },
+        include: { product: true, warehouse: true },
+      });
+    }
+
+    await tx.$executeRaw`
+      UPDATE "Inventory"
+      SET "reservedQuantity" = "reservedQuantity" - ${reservation.quantity}
+      WHERE "productId" = ${reservation.productId}
+        AND "warehouseId" = ${reservation.warehouseId}
+    `;
+
+    return await tx.reservation.update({
       where: { id },
+      data: { status: "RELEASED" },
       include: { product: true, warehouse: true },
     });
-  }
-
-  await db.$executeRawUnsafe(
-    `UPDATE "Inventory"
-     SET "reservedQuantity" = "reservedQuantity" - $1,
-         "updatedAt" = NOW()
-     WHERE "productId" = $2
-       AND "warehouseId" = $3`,
-    reservation.quantity,
-    reservation.productId,
-    reservation.warehouseId
-  );
-
-  return await db.reservation.update({
-    where: { id },
-    data: { status: "RELEASED" },
-    include: { product: true, warehouse: true },
   });
 }
