@@ -78,55 +78,62 @@ export async function createReservation({
 }
 
 export async function getReservation(id: string) {
+  /*
+   * LAZY EXPIRY: Every time a reservation is read, we check if it has expired.
+   * If it has expired and is still PENDING, we release it automatically before returning.
+   * This ensures active flows always see consistent state without waiting for cron.
+   */
   const reservation = await db.reservation.findUnique({
     where: { id },
     include: { product: true, warehouse: true },
   });
+
   if (!reservation) throw new ReservationNotFoundError();
 
   if (reservation.status === "PENDING" && reservation.expiresAt < new Date()) {
     return await releaseReservation(id);
   }
+
   return reservation;
 }
 
 export async function confirmReservation(id: string) {
-  const reservation = await db.reservation.findUnique({ where: { id } });
-  if (!reservation) throw new ReservationNotFoundError();
-  if (reservation.status === "CONFIRMED") throw new ReservationAlreadyProcessedError("CONFIRMED");
-  if (reservation.status === "RELEASED") throw new ReservationAlreadyProcessedError("RELEASED");
-  if (reservation.expiresAt < new Date()) {
-    await db.$executeRawUnsafe(
-      `UPDATE "Inventory"
-       SET "reservedQuantity" = "reservedQuantity" - $1,
-           "updatedAt" = NOW()
-       WHERE "productId" = $2
-         AND "warehouseId" = $3`,
-      reservation.quantity,
-      reservation.productId,
-      reservation.warehouseId
-    );
-    await db.reservation.update({ where: { id }, data: { status: "RELEASED" } });
-    throw new ReservationExpiredError();
-  }
+  /*
+   * CONFIRM = payment succeeded. The item is now sold permanently.
+   * We decrement BOTH totalQuantity AND reservedQuantity because the unit
+   * physically leaves our warehouse stock — it's no longer available at all.
+   *
+   * Contrast with RELEASE: only reservedQuantity decrements (item returns to available pool).
+   */
+  return await db.$transaction(async (tx) => {
+    const reservation = await tx.reservation.findUnique({ where: { id } });
+    if (!reservation) throw new ReservationNotFoundError();
+    if (reservation.status === "CONFIRMED") throw new ReservationAlreadyProcessedError("CONFIRMED");
+    if (reservation.status === "RELEASED") throw new ReservationAlreadyProcessedError("RELEASED");
+    if (reservation.expiresAt < new Date()) {
+      await tx.$executeRaw`
+        UPDATE "Inventory"
+        SET "reservedQuantity" = "reservedQuantity" - ${reservation.quantity}
+        WHERE "productId" = ${reservation.productId}
+          AND "warehouseId" = ${reservation.warehouseId}
+      `;
+      await tx.reservation.update({ where: { id }, data: { status: "RELEASED" } });
+      throw new ReservationExpiredError();
+    }
 
-  await db.$executeRawUnsafe(
-    `UPDATE "Inventory"
-     SET "totalQuantity" = "totalQuantity" - $1,
-         "reservedQuantity" = "reservedQuantity" - $2,
-         "updatedAt" = NOW()
-     WHERE "productId" = $3
-       AND "warehouseId" = $4`,
-    reservation.quantity,
-    reservation.quantity,
-    reservation.productId,
-    reservation.warehouseId
-  );
+    await tx.$executeRaw`
+      UPDATE "Inventory"
+      SET "totalQuantity" = "totalQuantity" - ${reservation.quantity},
+          "reservedQuantity" = "reservedQuantity" - ${reservation.quantity}
+      WHERE "productId" = ${reservation.productId}
+        AND "warehouseId" = ${reservation.warehouseId}
+    `;
 
-  return await db.reservation.update({
-    where: { id },
-    data: { status: "CONFIRMED" },
-    include: { product: true, warehouse: true },
+    return await tx.reservation.update({
+      where: { id },
+      data: { status: "CONFIRMED" },
+      include: { product: true, warehouse: true },
+    });
   });
 }
 
