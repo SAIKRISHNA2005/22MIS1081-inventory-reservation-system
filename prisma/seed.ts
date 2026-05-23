@@ -3,7 +3,6 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 async function main() {
-  // Seed warehouses
   const mumbaiWarehouse = await prisma.warehouse.upsert({
     where: { id: "warehouse-mumbai" },
     update: {},
