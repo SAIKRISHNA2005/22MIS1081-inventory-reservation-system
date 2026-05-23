@@ -1,7 +1,3 @@
-// The @@unique([productId, warehouseId]) on Inventory prevents duplicate inventory rows per product-warehouse pair
-// The @@index([status, expiresAt]) on Reservation optimizes the cron cleanup query that finds all expired PENDING reservations
-// availableQuantity is intentionally NOT stored to avoid sync issues — always compute it as totalQuantity - reservedQuantity
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -46,12 +42,6 @@ model Inventory {
 
   @@unique([productId, warehouseId])
 }
-
-// IMPORTANT: availableQuantity is NOT stored — it is always computed as:
-// totalQuantity - reservedQuantity
-// reservedQuantity increments on reserve, decrements on release
-// totalQuantity only decrements permanently on confirm (item sold)
-
 model Reservation {
   id          String            @id @default(cuid())
   productId   String

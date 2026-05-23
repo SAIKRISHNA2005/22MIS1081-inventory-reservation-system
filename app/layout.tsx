@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import QueryProvider from "@/lib/query-provider";
+import Providers from "./providers";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -18,14 +18,14 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.className}>
       <body className="antialiased">
-        <QueryProvider>
+        <Providers>
           <header className="sticky top-0 border-b bg-white">
             <div className="container mx-auto flex h-16 items-center px-4">
               <h1 className="text-xl font-semibold">Allo Inventory</h1>
             </div>
           </header>
           {children}
-        </QueryProvider>
+        </Providers>
       </body>
     </html>
   );

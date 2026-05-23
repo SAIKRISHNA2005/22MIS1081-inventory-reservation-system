@@ -21,8 +21,10 @@ The project is focused on handling inventory reservations safely under concurren
 Completed:
 - Initial application scaffolding and development infrastructure setup
 - Architecture notes for reservation lifecycle and concurrency strategy
- - Added Prisma schema defining Product, Warehouse, Inventory, and Reservation models
- - Added idempotent seed script populating two warehouses, three products, and realistic initial inventory levels
+- Added Prisma schema defining Product, Warehouse, Inventory, and Reservation models
+- Added idempotent seed script populating two warehouses, three products, and realistic initial inventory levels
+- Implemented GET /api/products and GET /api/warehouses endpoints
+- Built product listing page with stock per warehouse and reserve action
 
 ## Development
 

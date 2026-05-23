@@ -28,8 +28,7 @@ async function main() {
     mumbai: mumbaiWarehouse.id,
     delhi: delhiWarehouse.id,
   });
-
-  // Seed products
+  
   const headphones = await prisma.product.upsert({
     where: { id: "product-headphones" },
     update: {},
@@ -65,8 +64,7 @@ async function main() {
     keyboard: keyboard.id,
     hub: hub.id,
   });
-
-  // Seed inventory records
+  
   const inventoryRecords = [
     {
       id: "inv-headphones-mumbai",
