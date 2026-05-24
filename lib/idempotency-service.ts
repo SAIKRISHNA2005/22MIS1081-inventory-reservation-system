@@ -1,6 +1,7 @@
 import { redis } from "@/lib/redis";
 
-const IDEMPOTENCY_TTL_SECONDS = 60 * 60 * 24; // 24 hours
+// Idempotency is best-effort: if Redis is unavailable, requests still proceed normally.
+const IDEMPOTENCY_TTL_SECONDS = 60 * 60 * 24;
 
 export async function getIdempotencyResult(
   key: string,
@@ -11,7 +12,7 @@ export async function getIdempotencyResult(
     );
     return cached;
   } catch {
-    return null; // Don't fail the request if Redis is unavailable
+    return null;
   }
 }
 
@@ -23,6 +24,5 @@ export async function saveIdempotencyResult(
   try {
     await redis.set(`idempotency:${key}`, { status, body }, { ex: IDEMPOTENCY_TTL_SECONDS });
   } catch {
-    // Don't fail the request if Redis is unavailable
   }
 }

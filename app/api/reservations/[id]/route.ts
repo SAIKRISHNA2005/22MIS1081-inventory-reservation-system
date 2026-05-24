@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
+
 import { getReservation } from "@/lib/reservation-service";
-import { ReservationNotFoundError } from "@/lib/errors";
+import { handleApiError } from "@/lib/api-response";
 
 interface Params {
   params: {
@@ -13,10 +14,6 @@ export async function GET(_req: Request, { params }: Params) {
     const reservation = await getReservation(params.id);
     return NextResponse.json(reservation);
   } catch (err) {
-    if (err instanceof ReservationNotFoundError) {
-      return NextResponse.json({ error: err.message }, { status: 404 });
-    }
-    console.error(err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return handleApiError(err);
   }
 }

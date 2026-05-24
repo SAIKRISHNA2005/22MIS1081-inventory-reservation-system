@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 
 import { createReservation } from "@/lib/reservation-service";
 import { InsufficientStockError } from "@/lib/errors";
 import { CreateReservationSchema } from "@/lib/schemas";
+import { handleApiError } from "@/lib/api-response";
 import {
   getIdempotencyResult,
   saveIdempotencyResult,
@@ -30,19 +30,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(reservation, { status: 201 });
   } catch (err) {
-    if (err instanceof z.ZodError) {
-      return NextResponse.json({ error: err.issues }, { status: 400 });
+    if (idempotencyKey && err instanceof InsufficientStockError) {
+      await saveIdempotencyResult(idempotencyKey, 409, { error: err.message });
     }
-    if (err instanceof InsufficientStockError) {
-      const errorBody = { error: err.message };
-
-      if (idempotencyKey) {
-        await saveIdempotencyResult(idempotencyKey, 409, errorBody);
-      }
-
-      return NextResponse.json(errorBody, { status: 409 });
-    }
-    console.error(err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return handleApiError(err);
   }
 }

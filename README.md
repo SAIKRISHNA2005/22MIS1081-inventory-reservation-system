@@ -33,6 +33,7 @@ Completed:
 - Built reservation checkout page with real-time countdown timer and reservation action controls
 - Added optimistic UI updates, error boundary handling, and automatic post-action state synchronization
 - Added Upstash Redis-based idempotency protection for reservation and confirmation endpoints to prevent duplicate request processing
+- Refactored reservation logic into a dedicated service layer, centralized API error handling, and cleaned up route implementations for improved maintainability and consistency
 
 ## Development
 

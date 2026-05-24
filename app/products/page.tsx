@@ -70,7 +70,6 @@ function ProductCard({ product }: { product: Product }) {
             message = "Not enough stock at this warehouse";
           }
         } catch {
-          // keep default message
         }
         throw new Error(message);
       }
