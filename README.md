@@ -58,17 +58,18 @@ In **Vercel → Project → Settings → Environment Variables**, set all of the
 
 **Common mistake:** using the direct (5432) URL for both, or swapping `DATABASE_URL` and `DIRECT_URL`.
 
-### 2. Seed the production database (once)
+### 2. Run migrations and seed (once, from your machine)
 
-Migrations run automatically during `npm run build` on Vercel. Seed data does **not** — run locally against production:
+Migrations are **not** run during Vercel build (Supabase often blocks port 5432 from build servers → `P1001`). Run these locally with production credentials in `.env`:
 
 ```bash
-# Point .env at your production DIRECT_URL (or use env vars inline)
-npx prisma migrate deploy
-npx prisma db seed
+npm run db:migrate   # creates/updates tables
+npm run seed         # loads products + inventory
 ```
 
-Without seed, `/api/products` returns an empty list (DB is connected but no rows).
+Use **`DIRECT_URL`** in `.env` — from Supabase: **Connect → Session pooler → URI** (port **5432** on `*.pooler.supabase.com`), not the old `db.*.supabase.co` host if that fails.
+
+Without migrate + seed, the app deploys but `/api/products` is empty or APIs error.
 
 ### 3. Redeploy after changing env vars
 
