@@ -40,6 +40,55 @@ npm run dev
 
 Open http://localhost:3000
 
+---
+
+## Deploying to Vercel
+
+### 1. Environment variables
+
+In **Vercel → Project → Settings → Environment Variables**, set all of these for **Production** (and Preview if you use it):
+
+| Variable | Value |
+|---|---|
+| `DATABASE_URL` | Pooled URL — Supabase **Transaction pooler**, port **6543**, with `?pgbouncer=true&connection_limit=1` |
+| `DIRECT_URL` | Direct URL — port **5432**, no `pgbouncer` param |
+| `UPSTASH_REDIS_REST_URL` | From Upstash dashboard |
+| `UPSTASH_REDIS_REST_TOKEN` | From Upstash dashboard |
+| `CRON_SECRET` | Random string (`openssl rand -base64 32`) |
+
+**Common mistake:** using the direct (5432) URL for both, or swapping `DATABASE_URL` and `DIRECT_URL`.
+
+### 2. Seed the production database (once)
+
+Migrations run automatically during `npm run build` on Vercel. Seed data does **not** — run locally against production:
+
+```bash
+# Point .env at your production DIRECT_URL (or use env vars inline)
+npx prisma migrate deploy
+npx prisma db seed
+```
+
+Without seed, `/api/products` returns an empty list (DB is connected but no rows).
+
+### 3. Redeploy after changing env vars
+
+Vercel does not inject new env vars into an existing deployment. After adding or editing variables:
+
+> Deployments → latest → **⋯** → **Redeploy**
+
+### 4. Verify the deployment
+
+Open:
+
+```
+https://YOUR-APP.vercel.app/api/health
+```
+
+- `{ "ok": true, "db": "connected", "productCount": 8 }` — database is wired correctly.
+- `{ "ok": false, ... }` — read `hints` / `error` in the JSON and fix env URLs or run migrations/seed.
+
+Check **Vercel → Logs** for `[api error] prisma P2024` (pool timeout) or `P1001` (can't reach host).
+
 ### Running the concurrency test
 With the dev server running:
 ```bash

@@ -13,6 +13,8 @@ interface Params {
   };
 }
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest, { params }: Params) {
   const idempotencyKey = req.headers.get("idempotency-key");
 

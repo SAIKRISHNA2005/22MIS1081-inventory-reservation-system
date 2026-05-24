@@ -9,6 +9,8 @@ import {
   saveIdempotencyResult,
 } from "@/lib/idempotency-service";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   const idempotencyKey = req.headers.get("idempotency-key");
 

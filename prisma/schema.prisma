@@ -2,6 +2,8 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// DATABASE_URL = pooled (6543 + ?pgbouncer=true) for Vercel runtime
+// DIRECT_URL   = direct (5432) for prisma migrate deploy at build time
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { releaseReservation } from "@/lib/reservation-service";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   /*
    * CRON CLEANUP — runs every minute via Vercel Cron.

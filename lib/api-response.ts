@@ -15,6 +15,11 @@ export function handleApiError(err: unknown) {
     return NextResponse.json({ error: err.message }, { status: 410 });
   if (err instanceof InsufficientStockError || err instanceof ReservationAlreadyProcessedError)
     return NextResponse.json({ error: err.message }, { status: err.statusCode });
-  console.error("[api error]", err);
+  if (err && typeof err === "object" && "code" in err) {
+    const prismaErr = err as { code?: string; message?: string };
+    console.error("[api error] prisma", prismaErr.code, prismaErr.message);
+  } else {
+    console.error("[api error]", err);
+  }
   return NextResponse.json({ error: "Internal server error" }, { status: 500 });
 }

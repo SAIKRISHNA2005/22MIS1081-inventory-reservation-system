@@ -9,6 +9,8 @@ interface Params {
   };
 }
 
+export const dynamic = "force-dynamic";
+
 export async function GET(_req: Request, { params }: Params) {
   try {
     const reservation = await getReservation(params.id);
