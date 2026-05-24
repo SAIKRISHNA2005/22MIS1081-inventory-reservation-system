@@ -32,6 +32,7 @@ Completed:
 - Added hybrid expiry strategy combining lazy cleanup on GET reads with Vercel Cron background bulk release
 - Built reservation checkout page with real-time countdown timer and reservation action controls
 - Added optimistic UI updates, error boundary handling, and automatic post-action state synchronization
+- Added Upstash Redis-based idempotency protection for reservation and confirmation endpoints to prevent duplicate request processing
 
 ## Development
 

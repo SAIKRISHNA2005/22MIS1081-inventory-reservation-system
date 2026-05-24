@@ -49,7 +49,10 @@ function ProductCard({ product }: { product: Product }) {
 
       const response = await fetch("/api/reservations", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": crypto.randomUUID(),
+        },
         body: JSON.stringify({
           productId: product.id,
           warehouseId: selected.warehouseId,
