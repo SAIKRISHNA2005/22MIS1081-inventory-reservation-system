@@ -12,6 +12,9 @@ model Product {
   id           String        @id @default(cuid())
   name         String
   sku          String        @unique
+  description  String?
+  price        Int?
+  images       String?       // comma-separated image URLs
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 

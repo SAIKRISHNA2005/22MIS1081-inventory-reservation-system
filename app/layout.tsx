@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import Providers from "./providers";
-
-const inter = Inter({ subsets: ["latin"] });
+import { Navbar } from "@/components/navbar";
 
 export const metadata: Metadata = {
   title: "Allo Inventory",
@@ -16,14 +14,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={inter.className}>
-      <body className="antialiased">
+    <html lang="en" suppressHydrationWarning>
+      <body className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 antialiased">
         <Providers>
-          <header className="sticky top-0 border-b bg-white">
-            <div className="container mx-auto flex h-16 items-center px-4">
-              <h1 className="text-xl font-semibold">Allo Inventory</h1>
-            </div>
-          </header>
+          <Navbar />
           {children}
         </Providers>
       </body>

@@ -1,71 +1,82 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Check, XCircle, ArrowLeft, Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { BlurToast } from "@/components/ui/blur-toast";
+import { ReservationTimer } from "@/components/ui/reservation-timer";
+import { formatPrice } from "@/lib/product-display";
 
 interface Props {
   params: { id: string };
 }
 
-function formatMMSS(ms: number) {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const minutes = Math.floor(totalSeconds / 60)
-    .toString()
-    .padStart(2, "0");
-  const seconds = (totalSeconds % 60).toString().padStart(2, "0");
-  return `${minutes}:${seconds}`;
+interface ReservationError extends Error {
+  status?: number;
 }
 
-export default function Page({ params }: Props) {
+interface Reservation {
+  id: string;
+  status: "PENDING" | "CONFIRMED" | "RELEASED";
+  expiresAt: string;
+  productId: string;
+  warehouseId: string;
+  quantity: number;
+  product: {
+    id: string;
+    name: string;
+    sku: string;
+    price?: number | null;
+  };
+  warehouse: {
+    id: string;
+    name: string;
+    location?: string;
+  };
+}
+
+export default function ReservationPage({ params }: Props) {
   const { id } = params;
   const router = useRouter();
   const qc = useQueryClient();
-
   const [localError, setLocalError] = useState<string | null>(null);
-  const [errorType, setErrorType] = useState<"destructive" | "default">("default");
+  const [showCancelToast, setShowCancelToast] = useState(false);
 
   const {
     data: reservation,
     error: queryError,
     isLoading,
-  } = useQuery({
+  } = useQuery<Reservation>({
     queryKey: ["reservation", id],
     queryFn: async () => {
       const res = await fetch(`/api/reservations/${id}`);
       if (res.status === 410) {
-        const json = await res.json().catch(() => ({}));
-        const e: any = new Error("Expired");
-        e.status = 410;
-        e.body = json;
-        throw e;
+        const error: ReservationError = new Error("Reservation expired");
+        error.status = 410;
+        throw error;
       }
       if (!res.ok) {
-        const json = await res.json().catch(() => ({}));
-        const e: any = new Error("Fetch error");
-        e.status = res.status;
-        e.body = json;
-        throw e;
+        const error: ReservationError = new Error("Failed to load reservation");
+        error.status = res.status;
+        throw error;
       }
       return res.json();
     },
-    refetchInterval: (data: any) => (data?.status === "PENDING" ? 5000 : false),
+    refetchInterval: (query) => (query.state.data?.status === "PENDING" ? 5000 : false),
   });
 
-  // Countdown timer
-  const [timeLeft, setTimeLeft] = useState<number>(() =>
-    reservation?.expiresAt ? Math.max(0, new Date(reservation.expiresAt).getTime() - Date.now()) : 0
-  );
+  const [timeLeft, setTimeLeft] = useState(0);
 
   useEffect(() => {
-    if (!reservation) return;
-    if (reservation.status !== "PENDING") return;
+    if (!reservation?.expiresAt) return;
+    setTimeLeft(Math.max(0, new Date(reservation.expiresAt).getTime() - Date.now()));
+  }, [reservation?.expiresAt]);
+
+  useEffect(() => {
+    if (!reservation || reservation.status !== "PENDING") return;
 
     const update = () => {
       const left = Math.max(0, new Date(reservation.expiresAt).getTime() - Date.now());
@@ -74,46 +85,30 @@ export default function Page({ params }: Props) {
     };
 
     update();
-    const t = setInterval(update, 1000);
-    return () => clearInterval(t);
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
   }, [reservation, id, qc]);
 
-  // Mutations
   const confirmMutation = useMutation({
     mutationFn: async () => {
       setLocalError(null);
-      setErrorType("default");
       const res = await fetch(`/api/reservations/${id}/confirm`, { method: "POST" });
-      if (res.status === 409) {
-        const e: any = new Error("Conflict");
-        e.status = 409;
-        throw e;
-      }
-      if (res.status === 410) {
-        const e: any = new Error("Expired");
-        e.status = 410;
-        throw e;
-      }
       if (!res.ok) {
-        const e: any = new Error("Confirm failed");
-        e.status = res.status;
-        throw e;
+        const error: ReservationError = new Error("Failed to confirm");
+        error.status = res.status;
+        throw error;
       }
       return res.json();
     },
     onSuccess() {
       qc.invalidateQueries({ queryKey: ["reservation", id] });
     },
-    onError(err: any) {
-      if (err?.status === 409) {
-        setErrorType("destructive");
-        setLocalError("This reservation is no longer active.");
-      } else if (err?.status === 410) {
-        setErrorType("default");
-        setLocalError("Your reservation has expired — the units have been released. Please start a new reservation.");
+    onError(err: unknown) {
+      const error = err as ReservationError;
+      if (error?.status === 410) {
+        setLocalError("Your reservation has expired.");
       } else {
-        setErrorType("default");
-        setLocalError("An unexpected error occurred while confirming the reservation.");
+        setLocalError("Failed to confirm reservation.");
       }
     },
   });
@@ -121,149 +116,191 @@ export default function Page({ params }: Props) {
   const releaseMutation = useMutation({
     mutationFn: async () => {
       setLocalError(null);
-      setErrorType("default");
       const res = await fetch(`/api/reservations/${id}/release`, { method: "POST" });
-      if (res.status === 410) {
-        const e: any = new Error("Expired");
-        e.status = 410;
-        throw e;
-      }
-      if (!res.ok) {
-        const e: any = new Error("Release failed");
-        e.status = res.status;
-        throw e;
-      }
+      if (!res.ok) throw new Error("Failed to cancel");
       return res.json();
     },
     onSuccess() {
       qc.invalidateQueries({ queryKey: ["reservation", id] });
-      router.push("/products");
+      setShowCancelToast(true);
     },
-    onError(err: any) {
-      setErrorType("default");
-      setLocalError("Failed to cancel reservation. Please try again.");
+    onError() {
+      setLocalError("Failed to cancel reservation.");
     },
   });
 
-  // Render
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <Card className="w-full max-w-2xl p-6">
-          <Skeleton className="h-8 w-1/2 mb-4" />
-          <Skeleton className="h-6 w-1/3 mb-2" />
-          <Skeleton className="h-6 w-1/4 mb-2" />
-          <div className="flex gap-2 mt-4">
-            <Skeleton className="h-10 w-32" />
-            <Skeleton className="h-10 w-32" />
-          </div>
-        </Card>
+      <div className="mx-auto max-w-lg px-4 py-12 sm:px-6">
+        <Skeleton className="mb-6 h-8 w-2/3" />
+        <Skeleton className="mb-4 h-40" />
+        <Skeleton className="h-24" />
       </div>
     );
   }
 
-  if (queryError && (queryError as any).status === 410) {
+  if (queryError && (queryError as ReservationError).status === 410) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <Card className="w-full max-w-2xl p-6 text-center">
-          <h1 className="text-2xl font-semibold mb-2">Reservation expired</h1>
-          <p className="mb-4">This reservation expired.</p>
-          <Button onClick={() => router.push("/products")}>Browse products</Button>
-        </Card>
+      <div className="mx-auto max-w-lg px-4 py-12 text-center sm:px-6">
+        <XCircle className="mx-auto mb-3 h-10 w-10 text-red-600" />
+        <h1 className="text-lg font-semibold text-slate-900">Reservation expired</h1>
+        <p className="mt-2 text-sm text-slate-600">
+          The hold on this stock has been released.
+        </p>
+        <Button onClick={() => router.push("/products")} className="mt-6">
+          Back to inventory
+        </Button>
       </div>
     );
   }
 
-  if (queryError) {
+  if (queryError || !reservation) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <Card className="w-full max-w-2xl p-6">
-          <Alert>
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>Failed to load reservation. Please try again.</AlertDescription>
-          </Alert>
-        </Card>
+      <div className="mx-auto max-w-lg px-4 py-12 text-center sm:px-6">
+        <p className="text-sm text-red-600">Could not load this reservation.</p>
+        <Button onClick={() => router.push("/products")} className="mt-4">
+          Back to inventory
+        </Button>
       </div>
     );
   }
 
-  // reservation is available
-  const isPending = reservation?.status === "PENDING";
+  const isPending = reservation.status === "PENDING";
+  const isConfirmed = reservation.status === "CONFIRMED";
+  const isReleased = reservation.status === "RELEASED";
   const expired = isPending && timeLeft <= 0;
+  const price = reservation.product?.price ?? 0;
 
   return (
-    <div className="flex items-center justify-center p-8">
-      <Card className="w-full max-w-2xl p-6">
-        <h1 className="text-2xl font-bold mb-2">{reservation.product.name}</h1>
-        <div className="mb-2 text-sm text-muted-foreground">Warehouse: {reservation.warehouse.name}</div>
-        <div className="mb-4">Quantity: {reservation.quantity}</div>
+    <>
+      <BlurToast
+        open={showCancelToast}
+        title="Reservation cancelled"
+        description="Stock has been returned to the warehouse."
+        icon={<XCircle className="h-10 w-10 text-red-500" />}
+        onClose={() => {
+          setShowCancelToast(false);
+          router.push("/products");
+        }}
+        duration={2400}
+      />
 
-        <div className="mb-4">
-          {reservation.status === "PENDING" && <Badge className="bg-amber-400 text-amber-900">PENDING</Badge>}
-          {reservation.status === "CONFIRMED" && <Badge className="bg-green-500 text-white">✓ CONFIRMED</Badge>}
-          {reservation.status === "RELEASED" && <Badge className="bg-gray-400 text-white">RELEASED</Badge>}
+      <div className="mx-auto max-w-lg px-4 py-10 sm:px-6">
+      <button
+        type="button"
+        onClick={() => router.push("/products")}
+        className="btn-interactive mb-6 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Inventory
+      </button>
+
+      <h1 className="text-xl font-semibold text-slate-900">
+        {isPending && !expired
+          ? "Confirm reservation"
+          : isConfirmed
+            ? "Order confirmed"
+            : isReleased
+              ? "Reservation cancelled"
+              : "Reservation expired"}
+      </h1>
+
+      <div className="mt-6 space-y-4">
+        {isReleased && (
+          <div className="flex items-start gap-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm">
+            <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+            <p className="text-red-800">Units returned to available stock.</p>
+          </div>
+        )}
+
+        {isConfirmed && (
+          <div className="flex items-start gap-3 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm">
+            <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+            <p className="text-emerald-800">Inventory updated. This order is confirmed.</p>
+          </div>
+        )}
+
+        {isPending && (
+          <ReservationTimer timeLeftMs={expired ? 0 : timeLeft} />
+        )}
+
+        <div className="rounded-md border border-slate-200 bg-white">
+          <div className="border-b border-slate-100 px-4 py-3">
+            <h2 className="text-sm font-medium text-slate-900">Order summary</h2>
+          </div>
+
+          <div className="space-y-4 px-4 py-4 text-sm">
+            <div>
+              <p className="font-medium text-slate-900">{reservation.product.name}</p>
+              <p className="mt-0.5 font-mono text-xs text-slate-500">{reservation.product.sku}</p>
+              {price > 0 && (
+                <p className="mt-2 text-base font-semibold tabular-nums text-slate-900">
+                  {formatPrice(price)}
+                </p>
+              )}
+            </div>
+
+            <dl className="grid grid-cols-2 gap-3 border-t border-slate-100 pt-4">
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-slate-500">Warehouse</dt>
+                <dd className="mt-1 font-medium text-slate-900">{reservation.warehouse.name}</dd>
+                {reservation.warehouse.location && (
+                  <dd className="text-slate-600">{reservation.warehouse.location}</dd>
+                )}
+              </div>
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-slate-500">Quantity</dt>
+                <dd className="mt-1 text-lg font-semibold tabular-nums text-slate-900">
+                  {reservation.quantity}
+                </dd>
+              </div>
+            </dl>
+          </div>
         </div>
 
-        {isPending && !expired && (
-          <div className="mb-6">
-            <div className="text-5xl font-mono flex items-center gap-3">
-              <span className="text-3xl">⏰</span>
-              {formatMMSS(timeLeft)}
-            </div>
-            <div className="text-sm text-muted-foreground mt-2">Time left to confirm</div>
-          </div>
-        )}
-
         {localError && (
-          <div className="mb-4">
-            <Alert variant={errorType === "destructive" ? "destructive" : "default"}>
-              <AlertTitle>{errorType === "destructive" ? "Cannot confirm" : "Info"}</AlertTitle>
-              <AlertDescription>{localError}</AlertDescription>
-            </Alert>
-          </div>
+          <p className="text-sm text-red-600" role="alert">
+            {localError}
+          </p>
         )}
 
-        {reservation.status === "CONFIRMED" && (
-          <div className="mb-4">
-            <Alert>
-              <AlertTitle>✓ Payment confirmed</AlertTitle>
-              <AlertDescription>Payment confirmed. Your order is placed.</AlertDescription>
-            </Alert>
-          </div>
-        )}
-
-        {reservation.status === "RELEASED" && (
-          <div className="mb-4">
-            <Alert>
-              <AlertTitle>Released</AlertTitle>
-              <AlertDescription>This reservation has been released.</AlertDescription>
-            </Alert>
-          </div>
-        )}
-
-        <div className="flex gap-3">
-          {isPending && !expired && (
+        <div className="flex flex-col gap-2 pt-2">
+          {isPending && !expired ? (
             <>
               <Button
                 onClick={() => confirmMutation.mutate()}
-                disabled={confirmMutation.isLoading || releaseMutation.isLoading}
+                disabled={confirmMutation.isPending || releaseMutation.isPending}
+                className="btn-interactive h-10 w-full bg-emerald-700 text-white hover:bg-emerald-600 hover:text-white disabled:bg-emerald-300 disabled:text-emerald-50"
               >
-                {confirmMutation.isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {confirmMutation.isLoading ? "Processing..." : "Confirm purchase"}
+                {confirmMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Confirming…
+                  </>
+                ) : (
+                  "Confirm purchase"
+                )}
               </Button>
-
               <Button
-                variant="ghost"
+                variant="outline"
                 onClick={() => releaseMutation.mutate()}
-                disabled={confirmMutation.isLoading || releaseMutation.isLoading}
+                disabled={confirmMutation.isPending || releaseMutation.isPending}
+                className="btn-interactive h-10 w-full border-slate-300 bg-white text-slate-800 hover:border-red-300 hover:bg-red-50 hover:text-red-800"
               >
-                {releaseMutation.isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {releaseMutation.isLoading ? "Cancelling..." : "Cancel reservation"}
+                {releaseMutation.isPending ? "Cancelling…" : "Cancel reservation"}
               </Button>
             </>
+          ) : (
+            <Button
+              onClick={() => router.push("/products")}
+              className="btn-interactive h-10 w-full bg-slate-900 text-white hover:bg-slate-700 hover:text-white"
+            >
+              Back to inventory
+            </Button>
           )}
         </div>
-      </Card>
+      </div>
     </div>
+    </>
   );
 }

@@ -30,6 +30,8 @@ Completed:
 - Implemented reservation confirmation endpoint that permanently decrements inventory on payment success
 - Implemented reservation release endpoint that returns reserved units back to available pool
 - Added hybrid expiry strategy combining lazy cleanup on GET reads with Vercel Cron background bulk release
+- Built reservation checkout page with real-time countdown timer and reservation action controls
+- Added optimistic UI updates, error boundary handling, and automatic post-action state synchronization
 
 ## Development
 
