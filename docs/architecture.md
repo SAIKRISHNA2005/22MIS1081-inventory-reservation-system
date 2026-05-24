@@ -94,6 +94,7 @@ Every time a reservation is read (GET /api/reservations/:id, or before confirm/r
 
 ### 2. Cron cleanup (eventual consistency layer)
 A Vercel Cron job runs every minute hitting `GET /api/cron/release-expired`. It finds all reservations where `status=PENDING AND expiresAt < now` and releases them in bulk. This handles abandoned reservations where no further reads occur.
+In production (Vercel Hobby), the cron runs once daily at midnight. Lazy expiry on read handles real-time correctness. Upgrading to Vercel Pro would allow per-minute cleanup
 
 Together: lazy expiry guarantees correctness for active flows; cron guarantees eventual cleanup for abandoned ones.
 
