@@ -13,8 +13,8 @@ export function Navbar1() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-white/30 bg-white/80 shadow-sm backdrop-blur-xl backdrop-saturate-150">
-      <div className="relative mx-auto grid h-20 w-full grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-start">
+      <div className="relative mx-auto grid h-20 w-full grid-cols-1 items-center px-4 sm:grid-cols-[1fr_auto_1fr] sm:gap-4 sm:px-6 lg:px-8">
+        <div className="z-10 col-start-1 row-start-1 justify-self-start">
           <Link href="/products" aria-label="Allo Health home" className="shrink-0">
             <motion.div
               className="relative h-16 w-36 overflow-hidden rounded-xl sm:h-[4.5rem] sm:w-40"
@@ -36,7 +36,7 @@ export function Navbar1() {
         </div>
 
         <motion.p
-          className="truncate text-center text-sm font-semibold tracking-tight text-slate-900 sm:text-base"
+          className="pointer-events-none z-0 col-start-1 row-start-1 max-w-[11rem] justify-self-center text-center text-sm font-semibold leading-snug tracking-tight text-slate-900 sm:pointer-events-auto sm:col-start-2 sm:row-start-1 sm:max-w-none sm:text-base sm:leading-normal"
           initial={{ opacity: 0, y: -6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25 }}
@@ -44,7 +44,7 @@ export function Navbar1() {
           Allo Health Inventory System
         </motion.p>
 
-        <div className="flex items-center justify-end">
+        <div className="z-10 col-start-1 row-start-1 flex justify-self-end sm:col-start-3 sm:row-start-1">
           <motion.div
             className="hidden sm:block"
             initial={{ opacity: 0, x: 12 }}

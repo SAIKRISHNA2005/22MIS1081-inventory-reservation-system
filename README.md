@@ -1,54 +1,126 @@
-# Inventory Reservation System
+# Allo Inventory Reservation System
 
-A multi-warehouse inventory reservation system built with Next.js 14, TypeScript, PostgreSQL, Prisma, and Redis.
+A Next.js application implementing race-condition-safe inventory reservations for a multi-warehouse retail platform.
 
-The project is focused on handling inventory reservations safely under concurrent checkout scenarios while maintaining accurate stock availability across warehouses.
+**Live demo**: [your-vercel-url]  
+**Architecture doc**: [docs/architecture.md](./docs/architecture.md)
 
-## Tech Stack
+---
 
-- Next.js 14 (App Router)
-- TypeScript
-- PostgreSQL
-- Prisma ORM
-- Redis (Upstash)
-- TanStack Query
-- Tailwind CSS
-- shadcn/ui
-- Zod
+## What this does
 
-## Project Status
+When a customer proceeds to checkout, units are temporarily reserved for 10 minutes. If payment succeeds, the reservation is confirmed and inventory permanently decrements. If payment fails or the timer expires, the hold is released and units return to available stock.
 
-Completed:
-- Initial application scaffolding and development infrastructure setup
-- Architecture notes for reservation lifecycle and concurrency strategy
-- Added Prisma schema defining Product, Warehouse, Inventory, and Reservation models
-- Added idempotent seed script populating two warehouses, three products, and realistic initial inventory levels
-- Implemented GET /api/products and GET /api/warehouses endpoints
-- Built product listing page with stock per warehouse and reserve action
-- Implemented atomic stock reservation with PostgreSQL conditional UPDATE
-- Added concurrency script proving exactly one reservation succeeds for the last unit
-- Implemented reservation confirmation endpoint that permanently decrements inventory on payment success
-- Implemented reservation release endpoint that returns reserved units back to available pool
-- Added hybrid expiry strategy combining lazy cleanup on GET reads with Vercel Cron background bulk release
-- Built reservation checkout page with real-time countdown timer and reservation action controls
-- Added optimistic UI updates, error boundary handling, and automatic post-action state synchronization
-- Added Upstash Redis-based idempotency protection for reservation and confirmation endpoints to prevent duplicate request processing
-- Refactored reservation logic into a dedicated service layer, centralized API error handling, and cleaned up route implementations for improved maintainability and consistency
+This prevents both overselling (two customers buying the last unit) and false stock depletion (carts abandoned without reservations expiring).
 
-## Development
+---
 
-Install dependencies:
+## Local setup
 
-```bash id="g5m8v1"
-npm install
-```
+### Prerequisites
+- Node.js 18+
+- A hosted PostgreSQL database (Supabase or Neon free tier)
+- An Upstash Redis instance (free tier)
 
-Start the development server:
+### Steps
 
 ```bash
+git clone https://github.com/SAIKRISHNA2005/22MIS1081-inventory-reservation-system.git 
+cd 22MIS1081-inventory-reservation-system
+npm install
+
+cp .env.example .env
+# Fill in DATABASE_URL, DIRECT_URL (from Supabase/Neon dashboard)
+# Fill in UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN (from Upstash dashboard)
+
+npx prisma migrate dev
+npx prisma db seed
 npm run dev
 ```
 
-Environment Variables
+Open http://localhost:3000
 
-Create a .env.local file using .env.example as reference.
+### Running the concurrency test
+With the dev server running:
+```bash
+npm run test:concurrency
+```
+This fires 20 simultaneous reservation requests for the last unit of USB-C Hub (Mumbai warehouse) and asserts that exactly 1 succeeds and 19 receive 409.
+
+---
+
+## How reservation expiry works in production
+
+Reservations use a **hybrid expiry strategy**:
+
+**Lazy expiry (correctness layer)**: Every time a reservation is read — whether by the checkout page polling, or before a confirm/release action — the system checks `expiresAt < now`. If the reservation is expired and still PENDING, it is released automatically before the response is returned. This guarantees active users always see consistent state.
+
+**Cron cleanup (eventual consistency layer)**: A Vercel Cron job runs every minute and calls `GET /api/cron/release-expired`, which bulk-releases all PENDING reservations past their `expiresAt`. This handles abandoned reservations where no further reads occur after the timer runs out.
+
+---
+
+## Trade-offs and what I'd change with more time
+
+| Decision | Why | What I'd change at scale |
+|---|---|---|
+| No version field / optimistic locking | Conditional UPDATE is sufficient at this scale | Add a `version` int for high-contention SKUs + retry loop |
+| Cron granularity = 1 minute | Acceptable for 10-min reservation window | Queue-based delayed jobs (BullMQ) for precise per-reservation expiry |
+| No authentication | Out of scope for this exercise | JWT/session to bind reservations to a user, prevent cross-user confirms |
+| No rate limiting | Out of scope | Rate limit POST /api/reservations by IP to prevent spam reservations |
+| Synchronous reservation confirm | Simple and correct | At high volume, confirm via payment webhook queue (async) |
+| Cron runs on every instance | Acceptable for single-region Vercel | Distributed lock or queue to prevent duplicate cleanup on multi-region |
+
+## Things not implemented
+
+- User authentication (reservations are anonymous)
+- Payment provider integration (confirm is a direct button, not a webhook)
+- Email notifications on reservation expiry
+- Admin dashboard for inventory management
+
+---
+
+## Tech stack
+
+Next.js 14 (App Router) · TypeScript · Prisma · PostgreSQL · Supabase · Upstash Redis · TanStack Query · Zod · Tailwind CSS · shadcn/ui · Vercel
+
+---
+
+## Screenshots
+
+Captured from a local run at `http://localhost:3000` (desktop: 1440×900, mobile: iPhone 13 viewport).
+
+### Desktop (1440×900)
+
+**Products — `/products`**
+
+![Desktop products page](./public/images/output/desktop-products.png)
+
+**Reservation checkout — `/reservation/[id]` (pending, 10-minute timer)**
+
+![Desktop reservation pending](./public/images/output/desktop-reservation-pending.png)
+
+**Reservation confirmed — after Confirm purchase**
+
+![Desktop reservation confirmed](./public/images/output/desktop-reservation-confirmed.png)
+
+**Cancel reservation — blur toast overlay**
+
+![Desktop cancel toast](./public/images/output/desktop-cancel-toast.png)
+
+### Mobile (390×844, iPhone 13)
+
+**Products — `/products`**
+
+![Mobile products page](./public/images/output/mobile-products.png)
+
+**Reservation checkout — `/reservation/[id]` (pending)**
+
+![Mobile reservation pending](./public/images/output/mobile-reservation-pending.png)
+
+**Reservation confirmed**
+
+![Mobile reservation confirmed](./public/images/output/mobile-reservation-confirmed.png)
+
+**Cancel reservation — blur toast overlay**
+
+![Mobile cancel toast](./public/images/output/mobile-cancel-toast.png)
