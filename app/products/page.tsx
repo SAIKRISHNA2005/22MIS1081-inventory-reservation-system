@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProductImagePreview } from "@/components/ui/product-image-preview";
@@ -32,6 +32,7 @@ function firstAvailableWarehouse(warehouses: InventoryEntry[]) {
 
 function ProductCard({ product }: { product: Product }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const display = resolveProductDisplay(product);
 
   const defaultWarehouse = firstAvailableWarehouse(product.warehouses);
@@ -79,7 +80,8 @@ function ProductCard({ product }: { product: Product }) {
     onMutate: () => {
       setError(null);
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
+      await queryClient.invalidateQueries({ queryKey: ["products"] });
       router.push(`/reservation/${data.id}`);
     },
     onError: (err) => {

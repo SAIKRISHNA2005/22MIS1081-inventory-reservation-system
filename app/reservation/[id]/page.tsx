@@ -76,12 +76,21 @@ export default function ReservationPage({ params }: Props) {
   }, [reservation?.expiresAt]);
 
   useEffect(() => {
+    if (queryError && (queryError as ReservationError).status === 410) {
+      qc.invalidateQueries({ queryKey: ["products"] });
+    }
+  }, [queryError, qc]);
+
+  useEffect(() => {
     if (!reservation || reservation.status !== "PENDING") return;
 
     const update = () => {
       const left = Math.max(0, new Date(reservation.expiresAt).getTime() - Date.now());
       setTimeLeft(left);
-      if (left <= 0) qc.invalidateQueries({ queryKey: ["reservation", id] });
+      if (left <= 0) {
+        qc.invalidateQueries({ queryKey: ["reservation", id] });
+        qc.invalidateQueries({ queryKey: ["products"] });
+      }
     };
 
     update();
@@ -102,10 +111,12 @@ export default function ReservationPage({ params }: Props) {
     },
     onSuccess() {
       qc.invalidateQueries({ queryKey: ["reservation", id] });
+      qc.invalidateQueries({ queryKey: ["products"] });
     },
     onError(err: unknown) {
       const error = err as ReservationError;
       if (error?.status === 410) {
+        qc.invalidateQueries({ queryKey: ["products"] });
         setLocalError("Your reservation has expired.");
       } else {
         setLocalError("Failed to confirm reservation.");
@@ -122,6 +133,7 @@ export default function ReservationPage({ params }: Props) {
     },
     onSuccess() {
       qc.invalidateQueries({ queryKey: ["reservation", id] });
+      qc.invalidateQueries({ queryKey: ["products"] });
       setShowCancelToast(true);
     },
     onError() {
