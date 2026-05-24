@@ -121,7 +121,7 @@ The reserve and confirm endpoints accept an optional `Idempotency-Key` header. O
 
 ## Architecture diagram
 
-(./architecture-diagram.png)
+![Architecture Diagram](architecture-diagram.png)
 
 ---
 
