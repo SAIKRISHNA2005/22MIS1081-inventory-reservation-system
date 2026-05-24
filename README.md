@@ -2,7 +2,7 @@
 
 A Next.js application implementing race-condition-safe inventory reservations for a multi-warehouse retail platform.
 
-**Live demo**: [your-vercel-url]  
+**Live demo**: https://inventory-management-system-h280jcmen.vercel.app/  
 **Architecture doc**: [docs/architecture.md](./docs/architecture.md)
 
 ---
